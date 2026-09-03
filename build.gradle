@@ -1,0 +1,143 @@
+plugins {
+    id 'java'
+}
+
+group = 'csse3030'
+version = '1.0'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+ext {
+    junitVersion = '5.10.2'
+    jqwikVersion = '1.9.3'
+}
+
+dependencies {
+    // JUnit 5 (used directly by BoundedStackTraceTest, and transitively as the
+    // platform jqwik's engine plugs into)
+    testImplementation platform("org.junit:junit-bom:${junitVersion}")
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    // jqwik - property-based testing (Part 2) and metamorphic testing (Part 4)
+    testImplementation "net.jqwik:jqwik:${jqwikVersion}"
+}
+
+test {
+    useJUnitPlatform()
+}
+
+// --- Per-question test tasks -----------------------------------------------
+// Same pattern as Week 6's testQ2 / testQ3: one Gradle Test task per practical
+// question, filtered to the relevant test package, e.g. `./gradlew testQ2`.
+
+tasks.register('testQ2', Test) {
+    group = 'verification'
+    description = 'Part 2: Property-based testing (BoundedStack invariants, jqwik)'
+    useJUnitPlatform()
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    include 'csse3030/week7/BoundedStackPropertyTest.class'
+}
+
+tasks.register('testQ4', Test) {
+    group = 'verification'
+    description = 'Part 4: Metamorphic testing (ProductSearch subset relation, jqwik)'
+    useJUnitPlatform()
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    include 'csse3030/week7/ProductSearchMetamorphicTest.class'
+}
+
+// --- Part 3: Daikon ----------------------------------------------------------
+// Daikon isn't published to Maven Central, so it's wired up by hand:
+//   1. downloadDaikon  - fetches the official daikon.jar distribution once and
+//                        caches it under lib/daikon.jar (not committed - see
+//                        .gitignore - fetched fresh on each machine instead).
+//   2. daikonTrace     - runs Daikon's Chicory front end over
+//                        BoundedStackTraceTest, instrumenting BoundedStack and
+//                        producing daikon/bounded-stack.dtrace.gz.
+//   3. daikonDetect    - runs daikon.Daikon over that trace file and writes
+//                        the inferred invariants to daikon/invariants.txt.
+//
+// Both tasks are plain JavaExec - no Docker required. Chicory and daikon.Daikon
+// are pure-Java tools bundled in daikon.jar, so the JDK you already have
+// installed for the rest of this project is all you need.
+
+def daikonJar = layout.projectDirectory.file('lib/daikon.jar')
+def daikonDir = layout.buildDirectory.dir('daikon')
+def daikonDistUrl = 'https://plse.cs.washington.edu/daikon/download/daikon-5.9.0.zip'
+
+tasks.register('downloadDaikon') {
+    group = 'daikon'
+    description = 'Downloads daikon.jar (MIT licensed) from the official Daikon distribution, if not already present'
+    outputs.file(daikonJar)
+    doLast {
+        if (daikonJar.asFile.exists()) {
+            return
+        }
+        daikonJar.asFile.parentFile.mkdirs()
+        def zipFile = new File(temporaryDir, 'daikon.zip')
+        logger.lifecycle("Downloading Daikon distribution from ${daikonDistUrl} (~100MB, one-off)...")
+        ant.get(src: daikonDistUrl, dest: zipFile, verbose: true)
+        ant.unzip(src: zipFile, dest: temporaryDir) {
+            patternset {
+                include(name: '**/daikon.jar')
+            }
+        }
+        def extracted = fileTree(temporaryDir) { include '**/daikon.jar' }.singleFile
+        extracted.renameTo(daikonJar.asFile)
+    }
+}
+
+tasks.register('daikonTrace', JavaExec) {
+    group = 'daikon'
+    description = 'Part 3: Runs Daikon Chicory over BoundedStackTraceTest to produce a dtrace file'
+    dependsOn downloadDaikon, testClasses
+    def traceFileName = 'bounded-stack.dtrace.gz'
+    outputs.file(daikonDir.map { it.file(traceFileName) })
+    doFirst {
+        daikonDir.get().asFile.mkdirs()
+    }
+    // Runs with the working directory set to build/daikon and passes a bare
+    // filename (no path) to --dtrace-file: Chicory's javaagent re-parses its
+    // options as a single string, which breaks if the path contains a space
+    // (e.g. a Windows profile directory like "C:\Users\Jane Doe\...").
+    workingDir = daikonDir
+    // Chicory runs the target class the same way `java <class>` would, so
+    // BoundedStackTraceTest needs a plain main(String[]) entry point - see
+    // its source for why it also carries @Test methods for `./gradlew test`.
+    classpath = files(daikonJar) + sourceSets.test.runtimeClasspath
+    mainClass = 'daikon.Chicory'
+    args = [
+        "--dtrace-file=${traceFileName}",
+        'csse3030.week7.BoundedStackTraceTest'
+    ]
+}
+
+tasks.register('daikonDetect', JavaExec) {
+    group = 'daikon'
+    description = 'Part 3: Runs daikon.Daikon over the traced BoundedStack calls and writes the inferred invariants'
+    dependsOn daikonTrace
+    def traceFile = daikonDir.map { it.file('bounded-stack.dtrace.gz') }
+    def reportFile = daikonDir.map { it.file('invariants.txt') }
+    outputs.file(reportFile)
+    // Keeps Daikon's own incidental output (e.g. a cached .inv.gz) inside
+    // build/daikon instead of scattering it into the project root.
+    workingDir = daikonDir
+    classpath = files(daikonJar)
+    mainClass = 'daikon.Daikon'
+    args = [traceFile.get().asFile.absolutePath]
+    doFirst {
+        reportFile.get().asFile.parentFile.mkdirs()
+        standardOutput = new FileOutputStream(reportFile.get().asFile)
+    }
+}
