@@ -134,9 +134,8 @@ tasks.register('daikonDetect', JavaExec) {
     dependsOn daikonTrace
     def traceFile = daikonDir.map { it.file('bounded-stack.dtrace.gz') }
     def reportFile = daikonDir.map { it.file('invariants.txt') }
+    inputs.file(traceFile)   // <-- add this line
     outputs.file(reportFile)
-    // Keeps Daikon's own incidental output (e.g. a cached .inv.gz) inside
-    // build/daikon instead of scattering it into the project root.
     workingDir = daikonDir
     classpath = files(daikonJar)
     mainClass = 'daikon.Daikon'
