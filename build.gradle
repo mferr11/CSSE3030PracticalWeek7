@@ -35,10 +35,6 @@ test {
     useJUnitPlatform()
 }
 
-// --- Per-question test tasks -----------------------------------------------
-// Same pattern as Week 6's testQ2 / testQ3: one Gradle Test task per practical
-// question, filtered to the relevant test package, e.g. `./gradlew testQ2`.
-
 tasks.register('testQ2', Test) {
     group = 'verification'
     description = 'Part 2: Property-based testing (BoundedStack invariants, jqwik)'
