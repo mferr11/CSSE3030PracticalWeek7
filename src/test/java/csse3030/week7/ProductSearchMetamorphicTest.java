@@ -31,7 +31,7 @@ class ProductSearchMetamorphicTest {
         return products.list().ofMaxSize(20);
     }
 
-    // TODO (practical Part 4): add two @Property methods here --
+    // TODO: add two @Property methods here
     //   1. a permutation relation: reordering the catalog shouldn't change
     //      which products match a given filter.
     //   2. a subset/inclusion relation: narrowing a search filter with
