@@ -53,6 +53,15 @@ tasks.register('testQ4', Test) {
     include 'csse3030/week7/ProductSearchMetamorphicTest.class'
 }
 
+tasks.register('testQ4Warmup', Test) {
+    group = 'verification'
+    description = 'Part 4 warm-up: permutation metamorphic relation on a plain list (no ProductSearch)'
+    useJUnitPlatform()
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    include 'csse3030/week7/SumMetamorphicTest.class'
+}
+
 // --- Part 3: Daikon ----------------------------------------------------------
 // Daikon isn't published to Maven Central, so it's wired up by hand:
 //   1. downloadDaikon  - fetches the official daikon.jar distribution once and
