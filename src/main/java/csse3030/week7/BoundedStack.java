@@ -31,7 +31,7 @@ public class BoundedStack<T> {
 
     public T pop() {
         if (isEmpty()) {
-            return null;
+            throw new NoSuchElementException("stack is empty");
         }
         return items.remove(items.size() - 1);
     }
