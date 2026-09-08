@@ -107,6 +107,9 @@ tasks.register('daikonTrace', JavaExec) {
     group = 'daikon'
     description = 'Part 3: Runs Daikon Chicory over BoundedStackTraceTest to produce a dtrace file'
     dependsOn downloadDaikon, testClasses
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
     def traceFileName = 'bounded-stack.dtrace.gz'
     outputs.file(daikonDir.map { it.file(traceFileName) })
     doFirst {
@@ -132,6 +135,9 @@ tasks.register('daikonDetect', JavaExec) {
     group = 'daikon'
     description = 'Part 3: Runs daikon.Daikon over the traced BoundedStack calls and writes the inferred invariants'
     dependsOn daikonTrace
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
     def traceFile = daikonDir.map { it.file('bounded-stack.dtrace.gz') }
     def reportFile = daikonDir.map { it.file('invariants.txt') }
     inputs.file(traceFile)   // <-- add this line
